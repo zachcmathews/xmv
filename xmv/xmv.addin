@@ -1,0 +1,12 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+  <AddIn Type="Application">
+    <Name>eXtensible Model Validator</Name>
+    <Assembly>C:\ProgramData\xmv\xmv.dll</Assembly>
+    <AddInId>97178eff-b17e-4bbc-9e1e-99d68c48ed93</AddInId>
+    
+    <FullClassName>Xmv.RevitAddIn</FullClassName>
+    <VendorId>zachcmathews</VendorId>
+    <VendorDescription>Zachary Mathews, github.com/zachcmathews/</VendorDescription>
+  </AddIn>
+</RevitAddIns>

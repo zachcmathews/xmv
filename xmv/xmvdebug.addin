@@ -1,0 +1,24 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+  <AddIn Type="Application">
+    <Name>eXtensible Model Validator</Name>
+    <Assembly>C:\Users\zachary\source\repos\xmv\xmv\bin\Debug\xmv.dll</Assembly>
+    <AddInId>97178eff-b17e-4bbc-9e1e-99d68c48ed93</AddInId>
+    <VendorId>zachcmathews</VendorId>
+    <VendorDescription>Zachary Mathews, github.com/zachcmathews/</VendorDescription>
+
+    <FullClassName>Xmv.RevitAddIn</FullClassName>
+  </AddIn>
+
+  <AddIn Type="Command">
+    <Assembly>C:\Users\zachary\source\repos\xmv\xmv\bin\Debug\xmv.dll</Assembly>
+    <AddInId>3c94e2c0-eb4e-4495-8f49-3eb852a24be8</AddInId>
+    <VendorId>zachcmathews</VendorId>
+    <VendorDescription>Zachary Mathews, github.com/zachcmathews/</VendorDescription>
+
+    <FullClassName>Xmv.Monitor</FullClassName>
+    <Text>XMV Monitor</Text>
+    <VisibilityMode>NotVisibleWhenNoActiveDocument</VisibilityMode>
+    <Description>Monitor and run model validation tests</Description>
+  </AddIn>
+</RevitAddIns>
