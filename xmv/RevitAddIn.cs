@@ -28,8 +28,8 @@ namespace Xmv
 
   internal class SerializableConfiguration
   {
-    public List<string> TestDirectories = new List<string>();
-    public List<string> TestFiles = new List<string>();
+    public List<string> TestDirectories { get; set; } = new List<string>();
+    public List<string> TestFiles { get; set; } = new List<string>();
   }
 
   [Transaction(TransactionMode.Manual)]
@@ -71,7 +71,7 @@ namespace Xmv
     {
       var document = e.Document;
 
-      var configurationEntity = GetConfigurationEntity(document, schemaGuid);
+      var (_, configurationEntity) = GetConfigurationEntity(document, schemaGuid);
 
       // Parse the stored configuration
       SerializableConfiguration serializableConfiguration;
@@ -136,18 +136,20 @@ namespace Xmv
       Resources.Validators.Add(document.PathName, validator);
     }
 
-    private Entity GetConfigurationEntity(Document document, Guid schemaGuid)
+    private (DataStorage, Entity) GetConfigurationEntity(Document document, Guid schemaGuid)
     {
-      var schema = Schema.Lookup(schemaGuid);
-
-      var entity =
+      var dataStorage =
         new FilteredElementCollector(document)
         .OfClass(typeof(DataStorage))
+        .OfType<DataStorage>()
         .Where(ds => ds.GetEntitySchemaGuids().Contains(schemaGuid))
-        .Select(ds => ds.GetEntity(schema))
         .FirstOrDefault();
 
-      return entity;
+      if (dataStorage == null) return (null, null);
+
+      var schema = Schema.Lookup(schemaGuid);
+      var entity = dataStorage.GetEntity(schema);
+      return (dataStorage, entity);
     }
 
     private void Validator_ConfigurationChanged(object sender, EventArgs e)
@@ -157,7 +159,7 @@ namespace Xmv
 
       // TODO: Might need to add some notification here.
       // But entity should only be null in an exceptional circumstance.
-      var entity = GetConfigurationEntity(document, schemaGuid);
+      var (dataStorage, entity) = GetConfigurationEntity(document, schemaGuid);
       if (entity == null) { return; }
 
       var serializableConfiguration = new SerializableConfiguration
@@ -173,7 +175,9 @@ namespace Xmv
         using (var t = new Transaction(document))
         {
           if (t.Start("Update eXtensible Model Validator configuration") != TransactionStatus.Started) return;
-          entity.Set(schemaName, JsonSerializer.Serialize(serializableConfiguration));
+          var serializedConfig = JsonSerializer.Serialize(serializableConfiguration);
+          entity.Set(schemaName, serializedConfig); 
+          dataStorage.SetEntity(entity);
           if (t.Commit() != TransactionStatus.Committed) return;
         }
       };
