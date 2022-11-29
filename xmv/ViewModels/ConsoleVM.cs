@@ -50,9 +50,12 @@ namespace Xmv.ViewModels
       }
     }
 
-    public ConsoleVM()
+    public void Close()
     {
+      if (console != null) console.Close();
     }
+
+    public ConsoleVM() { }
 
     public event PropertyChangedEventHandler PropertyChanged;
     protected void OnPropertyChanged([CallerMemberName] string name = null)

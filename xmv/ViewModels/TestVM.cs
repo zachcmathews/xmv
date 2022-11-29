@@ -29,14 +29,7 @@ namespace Xmv.ViewModels
 
     public void Execute(object parameter)
     {
-      try
-      {
-        Test.Run();
-      }
-      catch (Exception e)
-      {
-        Test.Console.WriteLine(e.Message + "\n" + e.StackTrace);
-      }
+      Test.Run();
     }
   }
 
@@ -62,14 +55,7 @@ namespace Xmv.ViewModels
 
     public void Execute(object parameter)
     {
-      try
-      {
-        Test.Resolve();
-      }
-      catch (Exception e)
-      {
-        Test.Console.WriteLine(e.Message + "\n" + e.StackTrace);
-      }
+      Test.Resolve();
     }
   }
 
@@ -95,14 +81,7 @@ namespace Xmv.ViewModels
 
     public void Execute(object parameter)
     {
-      try
-      {
-        Test.ShowResults();
-      }
-      catch (Exception e)
-      {
-        Test.Console.WriteLine(e.Message + "\n" + e.StackTrace);
-      }
+      Test.ShowResults();
     }
   }
 

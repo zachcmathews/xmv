@@ -1,6 +1,8 @@
-﻿using System.ComponentModel;
-using System.Runtime.CompilerServices;
+﻿using System;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
+using System.Timers;
 
 
 namespace Xmv.Models
@@ -10,9 +12,11 @@ namespace Xmv.Models
   public delegate void Runner();
   public delegate void Resolver();
   public delegate void ResultsShower();
-
+  
   public class Test : INotifyPropertyChanged
   {
+    public Guid Id { get; } = Guid.NewGuid();
+
     private string name;
     public string Name
     {
@@ -52,13 +56,20 @@ namespace Xmv.Models
       set { canShowResults = value; OnPropertyChanged(); }
     }
 
-    public ObservableCollection<object> Results { get; set; } = new ObservableCollection<object>();
-
     public Runner Run { get; set; }
     public Resolver Resolve { get; set; }
     public ResultsShower ShowResults { get; set; }
 
-    public ConsoleVM Console { get; set; } = new ConsoleVM();
+    public Timer RunTimer { get; } = new Timer
+    {
+      Interval = double.MaxValue,
+      AutoReset = false,
+      Enabled = false,
+    };
+
+    public ObservableCollection<object> Results { get; } = new ObservableCollection<object>();
+
+    public ConsoleVM Console { get; } = new ConsoleVM();
 
     public event PropertyChangedEventHandler PropertyChanged;
     protected void OnPropertyChanged([CallerMemberName] string name = null)

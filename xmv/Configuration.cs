@@ -6,7 +6,7 @@ namespace Xmv
   {
     public string Name { get; set; }
     public object[] Context { get; set; }
-    public List<string> TestDirectories = new List<string>();
-    public List<string> TestFiles = new List<string>();
+    public List<string> TestDirectories { get; set; } = new List<string>();
+    public List<string> TestFiles { get; set; } = new List<string>();
   }
 }

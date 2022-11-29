@@ -1,9 +1,10 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Windows;
 
 namespace Xmv.Models
 {
@@ -21,15 +22,21 @@ namespace Xmv.Models
       ReloadTests();
     }
 
+    ~Validator()
+    {
+      UnloadTests();
+    }
+
     public event EventHandler ConfigurationChanged;
     protected virtual void OnConfigurationChanged()
     {
       ConfigurationChanged?.Invoke(this, EventArgs.Empty);
     }
 
+
     public void ReloadTests()
     {
-      Tests.Clear();
+      UnloadTests();
       foreach (var dir in Configuration.TestDirectories)
       {
         try
@@ -81,6 +88,24 @@ namespace Xmv.Models
       }
 
       OnConfigurationChanged();
+    }
+
+    public void UnloadTests()
+    {
+      // Stop any timers from scheduling new tasks
+      var testIds = Tests.Select(t => t.Id);
+      foreach (var test in Tests)
+      {
+        test.Console.Close();
+        test.RunTimer.Stop();
+      }
+      Tests.Clear();
+
+      // Delete all the tasks in scheduler queue associated with this validator
+      var tasks = new List<Task>(Scheduler.Queue);
+      tasks.RemoveAll(task => testIds.Contains(task.Source));
+      Scheduler.Queue.Clear();
+      Scheduler.Queue = new Queue<Task>(tasks);
     }
 
     public event PropertyChangedEventHandler PropertyChanged;

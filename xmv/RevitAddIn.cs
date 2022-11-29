@@ -1,29 +1,24 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Linq;
+using System.Collections.Generic;
 using System.Text.Json;
 
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.DB.Events;
+using Autodesk.Revit.DB.ExtensibleStorage;
 using Autodesk.Revit.UI;
+using Autodesk.Revit.UI.Events;
 
 namespace Xmv
 {
-  using Autodesk.Revit.DB.ExtensibleStorage;
-  using Autodesk.Revit.UI.Events;
-  using System;
-  using System.Linq;
   using Xmv.Models;
   using Xmv.ViewModels;
   using Xmv.Views;
 
   internal class Resources
   {
-    public static Dictionary<string, Validator> Validators { get; set; } = new Dictionary<string, Validator>();
-  }
-
-  internal class Scheduler
-  {
-    public Queue<Action> Queue { get; set; } = new Queue<Action> ();
+    public static Dictionary<string, (Validator, ValidatorVM, ValidatorView)> Validators { get; set; } = new Dictionary<string, (Validator, ValidatorVM, ValidatorView)>();
   }
 
   internal class SerializableConfiguration
@@ -36,11 +31,12 @@ namespace Xmv
   [Regeneration(RegenerationOption.Manual)]
   public class RevitAddIn : IExternalApplication
   {
+    readonly Guid applicationGuid = new Guid("97178eff-b17e-4bbc-9e1e-99d68c48ed93");
+    readonly Guid schemaGuid = new Guid("1f7b0fe4-bd91-41e2-b887-f445f0aec557");
+    readonly string schemaName = "eXtensibleModelValidatorConfiguration";
+
     UIControlledApplication uiControlledApplication;
     UIApplication uiapp;
-    Guid schemaGuid = new Guid("1f7b0fe4-bd91-41e2-b887-f445f0aec557");
-    string schemaName = "eXtensibleModelValidatorConfiguration";
-    Scheduler scheduler = new Scheduler();
 
     public Result OnStartup(UIControlledApplication application)
     {
@@ -62,8 +58,7 @@ namespace Xmv
 
     private void Idling(object sender, IdlingEventArgs e)
     {
-      if (scheduler.Queue.Count == 0) return;
-      scheduler.Queue.Dequeue().Invoke();
+      Scheduler.DoNext();
     }
 
     // Idling should run at some point before this event
@@ -133,7 +128,7 @@ namespace Xmv
 
       var validator = new Validator(configuration);
       validator.ConfigurationChanged += Validator_ConfigurationChanged;
-      Resources.Validators.Add(document.PathName, validator);
+      Resources.Validators.Add(document.PathName, (validator, null, null));
     }
 
     private (DataStorage, Entity) GetConfigurationEntity(Document document, Guid schemaGuid)
@@ -170,24 +165,27 @@ namespace Xmv
 
       // We have to update the configuration within a Revit event handler
       // then immediately remove our handler.
-      Action handler = () =>
+      void action()
       {
         using (var t = new Transaction(document))
         {
           if (t.Start("Update eXtensible Model Validator configuration") != TransactionStatus.Started) return;
           var serializedConfig = JsonSerializer.Serialize(serializableConfiguration);
-          entity.Set(schemaName, serializedConfig); 
+          entity.Set(schemaName, serializedConfig);
           dataStorage.SetEntity(entity);
           if (t.Commit() != TransactionStatus.Committed) return;
         }
-      };
-      scheduler.Queue.Enqueue(handler);
+      }
+      Scheduler.Queue.Enqueue(new Task { Source = applicationGuid, Action = action });
     }
 
     private void ControlledApplication_DocumentClosing(object sender, DocumentClosingEventArgs e)
     {
       if (Resources.Validators.ContainsKey(e.Document.PathName))
       {
+        var (_, _, validatorView) = Resources.Validators[e.Document.PathName];
+        validatorView.Close();
+
         Resources.Validators.Remove(e.Document.PathName);
       }
     }
@@ -208,17 +206,23 @@ namespace Xmv
       var document = uidoc.Document.PathName;
 
       Validator validator;
-      Resources.Validators.TryGetValue(document, out validator);
-      if (validator == null)
+      ValidatorVM validatorVM;
+      ValidatorView validatorView;
+      if (Resources.Validators.ContainsKey(document))
+      {
+        (validator, validatorVM, validatorView) = Resources.Validators[document];
+      }
+      else
       {
         // TODO: Alert user
         return Result.Failed;
       }
 
-      var validatorVM = new ValidatorVM(validator);
-      var validatorView = new ValidatorView(validatorVM);
-
+      if (validatorVM == null) validatorVM = new ValidatorVM(validator);
+      if (validatorView == null) validatorView = new ValidatorView(validatorVM);
       validatorView.Show();
+
+      Resources.Validators[document] = (validator, validatorVM, validatorView);
       return Result.Succeeded;
     }
   }

@@ -12,12 +12,132 @@ namespace Xmv
   using Xmv.ViewModels;
   using Xmv.Views;
 
-  public class Loader {
+  public class Loader
+  {
     public static List<Test> Load(string[] files, object[] context = null)
     {
       if (new FileInfo(files[0]).Extension.ToUpper(CultureInfo.InvariantCulture) == ".CS")
       {
-        return CompileCSharp(files, context);
+        var results = CompileCSharp(files);
+        var modules = results.CompiledAssembly.Modules;
+        var types =
+          modules.SelectMany(
+            m => m.GetTypes().Where(
+              t => t.BaseType == typeof(Test))).ToList();
+
+        var tests = new List<Test>();
+        foreach (var type in types)
+        {
+          var test = results.CompiledAssembly.CreateInstance(
+            type.FullName,
+            false,
+            BindingFlags.Default,
+            null,
+            context,
+            CultureInfo.InvariantCulture,
+            null
+          ) as Test;
+
+          var runMethod = type.GetMethod("Run");
+          if (runMethod != null)
+          {
+            var runner = type.GetMethod("Run").CreateDelegate(typeof(Runner), test) as Runner;
+
+            // Running of tests may or may not need to be scheduled.
+            // We're going to schedule them all anyways.
+            // Each add-in implementation can decide when to run the tests.
+            test.Run = () =>
+            {
+              Scheduler.Queue.Enqueue(new Task
+              {
+                Source = test.Id,
+                Action = () =>
+                {
+                  try
+                  {
+                    runner();
+                  }
+                  catch (Exception e)
+                  {
+                    test.Console.WriteLine(e.Message + "\n" + e.StackTrace);
+                  }
+                }
+              });
+            };
+          }
+
+          var resolveMethod = type.GetMethod("Resolve");
+          if (resolveMethod != null)
+          {
+            var resolver = type.GetMethod("Resolve").CreateDelegate(typeof(Resolver), test) as Resolver;
+
+            // Resolving of tests will likely need to be scheduled since changes will
+            // be made to the model.
+            test.Resolve = () =>
+            {
+              Scheduler.Queue.Enqueue(new Task
+              {
+                Source = test.Id,
+                Action = () =>
+                {
+                  try
+                  {
+                    resolver();
+                  }
+                  catch (Exception e)
+                  {
+                    test.Console.WriteLine(e.Message + "\n" + e.StackTrace);
+                  }
+                }
+              });
+            };
+          }
+
+          var showResultsMethod = type.GetMethod("ShowResults");
+          ResultsShower resultsShower;
+          if (showResultsMethod == null)
+          {
+            resultsShower = () =>
+            {
+              var vm = new ResultsVM(test);
+              var view = new ResultsView(vm);
+              view.Show();
+            };
+          }
+          else
+          {
+            resultsShower = showResultsMethod.CreateDelegate(typeof(ResultsShower), test) as ResultsShower;
+          }
+
+          test.ShowResults = () =>
+          {
+            Scheduler.Queue.Enqueue(new Task {
+              Source = test.Id,
+              Action = () => 
+              {
+                try
+                {
+                  resultsShower();
+                }
+                catch (Exception e)
+                {
+                  test.Console.WriteLine(e.Message + "\n" + e.StackTrace);
+                }
+              }
+            });
+          };
+
+          // NOTE: Test.Run actually enqueues the Run method here.
+          // Refer to above comments about scheduling runs.
+          test.RunTimer.Elapsed += (s, e) =>
+          {
+            test.Run();
+          };
+
+          tests.Add(test);
+        }
+
+        return tests;
       }
       else
       {
@@ -25,7 +145,7 @@ namespace Xmv
       }
     }
 
-    public static List<Test> CompileCSharp(string[] files, object[] context = null)
+    public static CompilerResults CompileCSharp(string[] files)
     {
       var provider = CodeDomProvider.CreateProvider("CSharp");
       if (provider == null)
@@ -89,57 +209,7 @@ namespace Xmv
         }
         throw new Exception(output);
       }
-
-      var modules = results.CompiledAssembly.Modules;
-      var types = 
-        modules.SelectMany(
-          m => m.GetTypes().Where(
-            t => t.BaseType == typeof(Test))).ToList();
-
-      var tests = new List<Test>();
-      foreach (var type in types)
-      {
-        var test = results.CompiledAssembly.CreateInstance(
-          type.FullName,
-          false,
-          BindingFlags.Default,
-          null,
-          context,
-          CultureInfo.InvariantCulture,
-          null
-        ) as Test;
-
-        var runMethod = type.GetMethod("Run");
-        if (runMethod != null)
-        {
-          test.Run = type.GetMethod("Run").CreateDelegate(typeof(Runner), test) as Runner;
-        }
-
-        var resolveMethod = type.GetMethod("Resolve");
-        if (resolveMethod != null)
-        {
-          test.Resolve = type.GetMethod("Resolve").CreateDelegate(typeof(Resolver), test) as Resolver;
-        }
-
-        var showResultsMethod = type.GetMethod("ShowResults");
-        if (showResultsMethod == null)
-        {
-          test.ShowResults = () =>
-          {
-            var vm = new ResultsVM(test);
-            var view = new ResultsView(vm);
-            view.Show();
-          };
-        }
-        else
-        {
-          test.ShowResults = showResultsMethod.CreateDelegate(typeof(ResultsShower), test) as ResultsShower;
-        }
-
-        tests.Add(test);
-      }
-
-      return tests;
+      return results;
     }
   }
 }
